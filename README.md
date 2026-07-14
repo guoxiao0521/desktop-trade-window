@@ -4,6 +4,12 @@ Windows 桌面股票小组件：当日分钟 K 线 + 实时报价，无边框悬
 
 技术栈：**Tauri 2** · **TypeScript** · **Vite** · **lightweight-charts** · **Rust**。
 
+## 下载
+
+在 [Releases](https://github.com/guoxiao0521/desktop-trade-window/releases) 下载 Windows 安装包（`*-setup.exe`）。
+
+> 未做代码签名时，首次运行可能被 SmartScreen 拦截，选择「仍要运行」即可。
+
 ## 功能
 
 - 无边框圆角卡片窗口（默认 `400×300`，最小 `320×220`），可拖动、可调整大小
@@ -40,15 +46,25 @@ npm run tauri dev
 
 ## 打包
 
+本地打包：
+
 ```bash
 npm run tauri build
 ```
 
-安装包输出：
+安装包输出：`src-tauri/target/release/bundle/nsis/`。
 
+### 自动发布（GitHub Actions）
+
+推送版本 tag 后，CI 会在 Windows 上打包 NSIS 安装包，并上传到 GitHub Releases：
+
+```bash
+# 先确认 package.json / src-tauri/Cargo.toml / src-tauri/tauri.conf.json 版本号一致
+git tag v0.1.0
+git push origin v0.1.0
 ```
-src-tauri/target/release/bundle/nsis/
-```
+
+也可在 GitHub → Actions → **Release** → **Run workflow** 手动触发。
 
 ## 目录结构
 
