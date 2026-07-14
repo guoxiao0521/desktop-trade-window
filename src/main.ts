@@ -1,5 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import {
+  PhysicalPosition,
+  PhysicalSize,
+  getCurrentWindow,
+} from "@tauri-apps/api/window";
 import { StockChart, type CandleBar } from "./chart";
 
 type Market = "US" | "HK" | "KR";
@@ -15,11 +19,23 @@ interface Quote {
   market: Market;
 }
 
-const STORAGE_SYMBOL = "stock-widget:symbol";
-const STORAGE_PERIOD = "stock-widget:period";
-const STORAGE_MARKET = "stock-widget:market";
-const STORAGE_COLOR_SCHEME = "stock-widget:colorScheme";
-const STORAGE_ALWAYS_ON_TOP = "stock-widget:alwaysOnTop";
+interface AppSettings {
+  market: string;
+  lastSymbols: Record<string, string>;
+  period: string;
+  colorScheme: string;
+  alwaysOnTop: boolean;
+  windowX?: number | null;
+  windowY?: number | null;
+  windowWidth?: number | null;
+  windowHeight?: number | null;
+}
+
+const LEGACY_STORAGE_SYMBOL = "stock-widget:symbol";
+const LEGACY_STORAGE_PERIOD = "stock-widget:period";
+const LEGACY_STORAGE_MARKET = "stock-widget:market";
+const LEGACY_STORAGE_COLOR_SCHEME = "stock-widget:colorScheme";
+const LEGACY_STORAGE_ALWAYS_ON_TOP = "stock-widget:alwaysOnTop";
 
 type ColorScheme = "green-up" | "red-up";
 
@@ -64,52 +80,187 @@ function isColorScheme(v: string | null | undefined): v is ColorScheme {
   return v === "green-up" || v === "red-up";
 }
 
-let market: Market = isMarket(localStorage.getItem(STORAGE_MARKET))
-  ? (localStorage.getItem(STORAGE_MARKET) as Market)
-  : "US";
-let symbol = localStorage.getItem(STORAGE_SYMBOL) || DEFAULTS[market];
-let period = localStorage.getItem(STORAGE_PERIOD) || "1m";
-let colorScheme: ColorScheme = isColorScheme(
-  localStorage.getItem(STORAGE_COLOR_SCHEME),
-)
-  ? (localStorage.getItem(STORAGE_COLOR_SCHEME) as ColorScheme)
-  : "green-up";
-let alwaysOnTop = localStorage.getItem(STORAGE_ALWAYS_ON_TOP) === "1";
+function isPeriod(v: string | null | undefined): v is string {
+  return v === "1m" || v === "5m";
+}
+
+function defaultLastSymbols(): Record<Market, string> {
+  return { ...DEFAULTS };
+}
+
+function normalizeLastSymbols(
+  raw: Record<string, string> | undefined,
+): Record<Market, string> {
+  const out = defaultLastSymbols();
+  if (!raw) return out;
+  for (const m of ["US", "HK", "KR"] as Market[]) {
+    const v = raw[m]?.trim().toUpperCase();
+    if (v) out[m] = v;
+  }
+  return out;
+}
+
+function readLegacyFromLocalStorage(): Partial<AppSettings> | null {
+  const marketRaw = localStorage.getItem(LEGACY_STORAGE_MARKET);
+  const symbolRaw = localStorage.getItem(LEGACY_STORAGE_SYMBOL);
+  const periodRaw = localStorage.getItem(LEGACY_STORAGE_PERIOD);
+  const schemeRaw = localStorage.getItem(LEGACY_STORAGE_COLOR_SCHEME);
+  const alwaysRaw = localStorage.getItem(LEGACY_STORAGE_ALWAYS_ON_TOP);
+
+  if (!marketRaw && !symbolRaw && !periodRaw && !schemeRaw && alwaysRaw === null) {
+    return null;
+  }
+
+  const market = isMarket(marketRaw) ? marketRaw : "US";
+  const lastSymbols = defaultLastSymbols();
+  if (symbolRaw?.trim()) {
+    lastSymbols[market] = symbolRaw.trim().toUpperCase();
+  }
+
+  return {
+    market,
+    lastSymbols,
+    period: isPeriod(periodRaw) ? periodRaw : "1m",
+    colorScheme: isColorScheme(schemeRaw) ? schemeRaw : "green-up",
+    alwaysOnTop: alwaysRaw === "1",
+  };
+}
+
+function clearLegacyLocalStorage() {
+  localStorage.removeItem(LEGACY_STORAGE_SYMBOL);
+  localStorage.removeItem(LEGACY_STORAGE_PERIOD);
+  localStorage.removeItem(LEGACY_STORAGE_MARKET);
+  localStorage.removeItem(LEGACY_STORAGE_COLOR_SCHEME);
+  localStorage.removeItem(LEGACY_STORAGE_ALWAYS_ON_TOP);
+}
+
+let market: Market = "US";
+let lastSymbols: Record<Market, string> = defaultLastSymbols();
+let symbol = DEFAULTS.US;
+let period = "1m";
+let colorScheme: ColorScheme = "green-up";
+let alwaysOnTop = false;
+let windowX: number | null = null;
+let windowY: number | null = null;
+let windowWidth: number | null = null;
+let windowHeight: number | null = null;
 let timer: number | undefined;
 let refreshVersion = 0;
-
-symbolInput.value = symbol;
-periodBtns.forEach((btn) => {
-  btn.classList.toggle("active", btn.dataset.period === period);
-});
-marketBtns.forEach((btn) => {
-  btn.classList.toggle("active", btn.dataset.market === market);
-});
-syncPlaceholder();
+let persistTimer: number | undefined;
+let settingsReady = false;
+let suppressWindowPersist = false;
 
 const chart = new StockChart(chartEl);
 const appWindow = getCurrentWindow();
 const toolbar = document.querySelector(".toolbar") as HTMLElement;
 
-function applyColorScheme(scheme: ColorScheme) {
+function currentSettings(): AppSettings {
+  return {
+    market,
+    lastSymbols: { ...lastSymbols },
+    period,
+    colorScheme,
+    alwaysOnTop,
+    windowX,
+    windowY,
+    windowWidth,
+    windowHeight,
+  };
+}
+
+function persist() {
+  if (!settingsReady) return;
+  if (persistTimer) window.clearTimeout(persistTimer);
+  persistTimer = window.setTimeout(() => {
+    void invoke("save_settings", { settings: currentSettings() }).catch((err) => {
+      console.error("save_settings failed", err);
+    });
+  }, 300);
+}
+
+function parseCoord(v: unknown): number | null {
+  return typeof v === "number" && Number.isFinite(v) ? Math.round(v) : null;
+}
+
+async function restoreWindowGeometry() {
+  const hasPos = windowX !== null && windowY !== null;
+  const hasSize =
+    windowWidth !== null &&
+    windowHeight !== null &&
+    windowWidth >= 320 &&
+    windowHeight >= 220;
+  if (!hasPos && !hasSize) return;
+
+  suppressWindowPersist = true;
+  try {
+    if (hasSize) {
+      await appWindow.setSize(new PhysicalSize(windowWidth!, windowHeight!));
+    }
+    if (hasPos) {
+      await appWindow.setPosition(new PhysicalPosition(windowX!, windowY!));
+    }
+  } catch (err) {
+    console.error("restore window geometry failed", err);
+  } finally {
+    // Allow move/resize events from setPosition/setSize to settle first.
+    window.setTimeout(() => {
+      suppressWindowPersist = false;
+    }, 500);
+  }
+}
+
+void appWindow.onMoved(({ payload }) => {
+  if (suppressWindowPersist || !settingsReady) return;
+  windowX = payload.x;
+  windowY = payload.y;
+  persist();
+});
+
+void appWindow.onResized(({ payload }) => {
+  if (suppressWindowPersist || !settingsReady) return;
+  windowWidth = payload.width;
+  windowHeight = payload.height;
+  persist();
+});
+
+function applyColorScheme(scheme: ColorScheme, persistChange = true) {
   colorScheme = scheme;
-  localStorage.setItem(STORAGE_COLOR_SCHEME, scheme);
   document.body.classList.toggle("red-up", scheme === "red-up");
   const colors = SCHEME_COLORS[scheme];
   chart.setColors(colors.up, colors.down);
   schemeBtns.forEach((btn) =>
     btn.classList.toggle("active", btn.dataset.scheme === scheme),
   );
+  if (persistChange) persist();
 }
 
 function setSettingsOpen(open: boolean) {
   settingsPanel.classList.toggle("hidden", !open);
 }
 
-applyColorScheme(colorScheme);
-alwaysOnTopInput.checked = alwaysOnTop;
-if (alwaysOnTop) {
-  void appWindow.setAlwaysOnTop(true);
+function syncPlaceholder() {
+  const tips: Record<Market, string> = {
+    US: "AAPL",
+    HK: "00700",
+    KR: "KOSPI",
+  };
+  symbolInput.placeholder = tips[market];
+  symbolInput.title =
+    `代码示例：美股 AAPL·DJI / 港股 00700·HSI / 韩股 005930·KOSPI（当前 ${market}）`;
+}
+
+function applyUiFromState() {
+  symbol = lastSymbols[market] || DEFAULTS[market];
+  symbolInput.value = symbol;
+  periodBtns.forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.period === period);
+  });
+  marketBtns.forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.market === market);
+  });
+  alwaysOnTopInput.checked = alwaysOnTop;
+  applyColorScheme(colorScheme, false);
+  syncPlaceholder();
 }
 
 function isInteractiveTarget(target: EventTarget | null): boolean {
@@ -154,27 +305,18 @@ schemeBtns.forEach((btn) => {
 
 alwaysOnTopInput.addEventListener("change", () => {
   alwaysOnTop = alwaysOnTopInput.checked;
-  localStorage.setItem(STORAGE_ALWAYS_ON_TOP, alwaysOnTop ? "1" : "0");
   void appWindow.setAlwaysOnTop(alwaysOnTop);
+  persist();
 });
-
-function syncPlaceholder() {
-  const tips: Record<Market, string> = {
-    US: "AAPL",
-    HK: "00700",
-    KR: "KOSPI",
-  };
-  symbolInput.placeholder = tips[market];
-  symbolInput.title =
-    `代码示例：美股 AAPL·DJI / 港股 00700·HSI / 韩股 005930·KOSPI（当前 ${market}）`;
-}
 
 symbolForm.addEventListener("submit", (e) => {
   e.preventDefault();
   const next = symbolInput.value.trim().toUpperCase();
   if (!next || next === symbol) return;
   symbol = next;
-  localStorage.setItem(STORAGE_SYMBOL, symbol);
+  lastSymbols[market] = symbol;
+  symbolInput.value = symbol;
+  persist();
   void refresh(true);
 });
 
@@ -183,15 +325,14 @@ marketBtns.forEach((btn) => {
     const next = btn.dataset.market;
     if (!isMarket(next) || next === market) return;
     market = next;
-    localStorage.setItem(STORAGE_MARKET, market);
+    symbol = lastSymbols[market] || DEFAULTS[market];
+    lastSymbols[market] = symbol;
+    symbolInput.value = symbol;
     marketBtns.forEach((b) =>
       b.classList.toggle("active", b.dataset.market === market),
     );
-    // Switch to a sensible default ticker for the new market.
-    symbol = DEFAULTS[market];
-    symbolInput.value = symbol;
-    localStorage.setItem(STORAGE_SYMBOL, symbol);
     syncPlaceholder();
+    persist();
     void refresh(true);
   });
 });
@@ -201,10 +342,10 @@ periodBtns.forEach((btn) => {
     const next = btn.dataset.period || "1m";
     if (next === period) return;
     period = next;
-    localStorage.setItem(STORAGE_PERIOD, period);
     periodBtns.forEach((b) =>
       b.classList.toggle("active", b.dataset.period === period),
     );
+    persist();
     void refresh(true);
   });
 });
@@ -292,13 +433,25 @@ async function refresh(showLoading: boolean) {
 
     chart.setData(bars);
     applyQuote(quote);
-    if (isMarket(quote.market)) {
+
+    let dirty = false;
+    if (isMarket(quote.market) && quote.market !== market) {
       market = quote.market;
-      localStorage.setItem(STORAGE_MARKET, market);
       marketBtns.forEach((b) =>
         b.classList.toggle("active", b.dataset.market === market),
       );
+      dirty = true;
     }
+    const resolved = quote.symbol.trim().toUpperCase();
+    if (resolved && lastSymbols[market] !== resolved) {
+      lastSymbols[market] = resolved;
+      symbol = resolved;
+      if (symbolInput.value.trim().toUpperCase() !== resolved) {
+        symbolInput.value = resolved;
+      }
+      dirty = true;
+    }
+    if (dirty) persist();
 
     const when = new Date().toLocaleTimeString("zh-CN", { hour12: false });
     const session = isMarketOpen(market) ? "盘中 30s 刷新" : "休市 5min 刷新";
@@ -313,4 +466,75 @@ async function refresh(showLoading: boolean) {
   }
 }
 
-void refresh(true);
+function defaultSettings(): AppSettings {
+  return {
+    market: "US",
+    lastSymbols: defaultLastSymbols(),
+    period: "1m",
+    colorScheme: "green-up",
+    alwaysOnTop: false,
+    windowX: null,
+    windowY: null,
+    windowWidth: null,
+    windowHeight: null,
+  };
+}
+
+async function bootstrap() {
+  statusEl.textContent = "加载配置…";
+  let settings = defaultSettings();
+  let fileMissing = false;
+
+  try {
+    const loaded = await invoke<AppSettings | null>("load_settings");
+    if (loaded) {
+      settings = loaded;
+    } else {
+      fileMissing = true;
+      const legacy = readLegacyFromLocalStorage();
+      if (legacy) {
+        settings = {
+          market: legacy.market ?? settings.market,
+          lastSymbols: {
+            ...defaultLastSymbols(),
+            ...(legacy.lastSymbols ?? {}),
+          },
+          period: legacy.period ?? settings.period,
+          colorScheme: legacy.colorScheme ?? settings.colorScheme,
+          alwaysOnTop: legacy.alwaysOnTop ?? settings.alwaysOnTop,
+        };
+      }
+    }
+  } catch (err) {
+    console.error("load_settings failed", err);
+  }
+
+  market = isMarket(settings.market) ? settings.market : "US";
+  lastSymbols = normalizeLastSymbols(settings.lastSymbols);
+  period = isPeriod(settings.period) ? settings.period : "1m";
+  colorScheme = isColorScheme(settings.colorScheme)
+    ? settings.colorScheme
+    : "green-up";
+  alwaysOnTop = Boolean(settings.alwaysOnTop);
+  windowX = parseCoord(settings.windowX);
+  windowY = parseCoord(settings.windowY);
+  windowWidth = parseCoord(settings.windowWidth);
+  windowHeight = parseCoord(settings.windowHeight);
+  symbol = lastSymbols[market] || DEFAULTS[market];
+
+  applyUiFromState();
+  if (alwaysOnTop) {
+    void appWindow.setAlwaysOnTop(true);
+  }
+  await restoreWindowGeometry();
+
+  settingsReady = true;
+  if (fileMissing) {
+    clearLegacyLocalStorage();
+    persist();
+  }
+
+  void refresh(true);
+}
+
+void bootstrap();

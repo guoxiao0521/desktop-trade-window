@@ -1,9 +1,111 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Manager, WindowEvent,
+    AppHandle, Manager, WindowEvent,
 };
+
+const SETTINGS_FILE: &str = "settings.json";
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct AppSettings {
+    #[serde(default = "default_market")]
+    pub market: String,
+    #[serde(default = "default_last_symbols")]
+    pub last_symbols: HashMap<String, String>,
+    #[serde(default = "default_period")]
+    pub period: String,
+    #[serde(default = "default_color_scheme")]
+    pub color_scheme: String,
+    #[serde(default)]
+    pub always_on_top: bool,
+    /// Outer window position in physical pixels (from last drag).
+    #[serde(default)]
+    pub window_x: Option<i32>,
+    #[serde(default)]
+    pub window_y: Option<i32>,
+    /// Inner window size in physical pixels (from last resize).
+    #[serde(default)]
+    pub window_width: Option<u32>,
+    #[serde(default)]
+    pub window_height: Option<u32>,
+}
+
+fn default_market() -> String {
+    "US".into()
+}
+
+fn default_period() -> String {
+    "1m".into()
+}
+
+fn default_color_scheme() -> String {
+    "green-up".into()
+}
+
+fn default_last_symbols() -> HashMap<String, String> {
+    HashMap::from([
+        ("US".into(), "AAPL".into()),
+        ("HK".into(), "00700".into()),
+        ("KR".into(), "005930".into()),
+    ])
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            market: default_market(),
+            last_symbols: default_last_symbols(),
+            period: default_period(),
+            color_scheme: default_color_scheme(),
+            always_on_top: false,
+            window_x: None,
+            window_y: None,
+            window_width: None,
+            window_height: None,
+        }
+    }
+}
+
+fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("app_config_dir: {e}"))?;
+    Ok(dir.join(SETTINGS_FILE))
+}
+
+#[tauri::command]
+fn load_settings(app: AppHandle) -> Result<Option<AppSettings>, String> {
+    let path = settings_path(&app)?;
+    if !path.exists() {
+        return Ok(None);
+    }
+    let text = fs::read_to_string(&path).map_err(|e| format!("read settings: {e}"))?;
+    match serde_json::from_str::<AppSettings>(&text) {
+        Ok(settings) => Ok(Some(settings)),
+        Err(e) => {
+            eprintln!("Failed to parse settings ({e}), using defaults");
+            Ok(Some(AppSettings::default()))
+        }
+    }
+}
+
+#[tauri::command]
+fn save_settings(app: AppHandle, settings: AppSettings) -> Result<(), String> {
+    let path = settings_path(&app)?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("create config dir: {e}"))?;
+    }
+    let text = serde_json::to_string_pretty(&settings)
+        .map_err(|e| format!("serialize settings: {e}"))?;
+    fs::write(&path, text).map_err(|e| format!("write settings: {e}"))?;
+    Ok(())
+}
 
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -775,7 +877,12 @@ fn toggle_main_window(app: &tauri::AppHandle) {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![fetch_kline, fetch_quote])
+        .invoke_handler(tauri::generate_handler![
+            fetch_kline,
+            fetch_quote,
+            load_settings,
+            save_settings
+        ])
         .setup(|app| {
             setup_tray(app)?;
             Ok(())
