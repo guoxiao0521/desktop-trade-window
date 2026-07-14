@@ -11,6 +11,11 @@
   font-family: "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
 }
 
+body.red-up {
+  --up: #ef5350;
+  --down: #26a69a;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -40,6 +45,7 @@ body {
   border-radius: 12px;
   overflow: hidden;
   backdrop-filter: blur(16px);
+  position: relative;
 }
 
 .toolbar {
@@ -227,4 +233,110 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.settings-panel {
+  position: absolute;
+  top: 40px;
+  right: 8px;
+  z-index: 20;
+  min-width: 200px;
+  padding: 10px 12px;
+  background: rgba(22, 28, 38, 0.98);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.settings-panel.hidden {
+  display: none;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.scheme {
+  display: flex;
+  gap: 2px;
+  background: var(--input-bg);
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.scheme-btn {
+  height: 22px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.scheme-btn.active {
+  background: rgba(79, 140, 255, 0.25);
+  color: var(--text);
+}
+
+.scheme-btn:hover:not(.active) {
+  color: var(--text);
+}
+
+.toggle {
+  position: relative;
+  display: inline-flex;
+  width: 36px;
+  height: 20px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.toggle-slider {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  transition: background 0.15s ease;
+}
+
+.toggle-slider::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.toggle input:checked + .toggle-slider {
+  background: rgba(79, 140, 255, 0.45);
+}
+
+.toggle input:checked + .toggle-slider::before {
+  transform: translateX(16px);
+  background: var(--text);
 }

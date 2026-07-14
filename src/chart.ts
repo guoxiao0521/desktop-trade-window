@@ -18,14 +18,24 @@ export interface CandleBar {
   volume: number;
 }
 
-const UP = "#26a69a";
-const DOWN = "#ef5350";
+const DEFAULT_UP = "#26a69a";
+const DEFAULT_DOWN = "#ef5350";
+
+function withAlpha(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
 
 export class StockChart {
   private chart: IChartApi;
   private candleSeries: ISeriesApi<"Candlestick">;
   private volumeSeries: ISeriesApi<"Histogram">;
   private resizeObserver: ResizeObserver;
+  private upColor = DEFAULT_UP;
+  private downColor = DEFAULT_DOWN;
+  private lastBars: CandleBar[] = [];
 
   constructor(container: HTMLElement) {
     this.chart = createChart(container, {
@@ -60,11 +70,11 @@ export class StockChart {
     });
 
     this.candleSeries = this.chart.addSeries(CandlestickSeries, {
-      upColor: UP,
-      downColor: DOWN,
+      upColor: this.upColor,
+      downColor: this.downColor,
       borderVisible: false,
-      wickUpColor: UP,
-      wickDownColor: DOWN,
+      wickUpColor: this.upColor,
+      wickDownColor: this.downColor,
     });
 
     this.volumeSeries = this.chart.addSeries(HistogramSeries, {
@@ -82,7 +92,22 @@ export class StockChart {
     this.resizeObserver.observe(container);
   }
 
+  setColors(up: string, down: string) {
+    this.upColor = up;
+    this.downColor = down;
+    this.candleSeries.applyOptions({
+      upColor: up,
+      downColor: down,
+      wickUpColor: up,
+      wickDownColor: down,
+    });
+    if (this.lastBars.length > 0) {
+      this.applyVolumeData(this.lastBars);
+    }
+  }
+
   setData(bars: CandleBar[]) {
+    this.lastBars = bars;
     const candles = bars.map((b) => ({
       time: b.time as UTCTimestamp,
       open: b.open,
@@ -90,14 +115,20 @@ export class StockChart {
       low: b.low,
       close: b.close,
     }));
+    this.candleSeries.setData(candles);
+    this.applyVolumeData(bars);
+    this.chart.timeScale().fitContent();
+  }
+
+  private applyVolumeData(bars: CandleBar[]) {
+    const upVol = withAlpha(this.upColor, 0.45);
+    const downVol = withAlpha(this.downColor, 0.45);
     const volumes = bars.map((b) => ({
       time: b.time as UTCTimestamp,
       value: b.volume,
-      color: b.close >= b.open ? "rgba(38,166,154,0.45)" : "rgba(239,83,80,0.45)",
+      color: b.close >= b.open ? upVol : downVol,
     }));
-    this.candleSeries.setData(candles);
     this.volumeSeries.setData(volumes);
-    this.chart.timeScale().fitContent();
   }
 
   destroy() {

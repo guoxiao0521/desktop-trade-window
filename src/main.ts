@@ -18,6 +18,15 @@ interface Quote {
 const STORAGE_SYMBOL = "stock-widget:symbol";
 const STORAGE_PERIOD = "stock-widget:period";
 const STORAGE_MARKET = "stock-widget:market";
+const STORAGE_COLOR_SCHEME = "stock-widget:colorScheme";
+const STORAGE_ALWAYS_ON_TOP = "stock-widget:alwaysOnTop";
+
+type ColorScheme = "green-up" | "red-up";
+
+const SCHEME_COLORS: Record<ColorScheme, { up: string; down: string }> = {
+  "green-up": { up: "#26a69a", down: "#ef5350" },
+  "red-up": { up: "#ef5350", down: "#26a69a" },
+};
 
 const DEFAULTS: Record<Market, string> = {
   US: "AAPL",
@@ -31,6 +40,14 @@ const priceEl = document.getElementById("price") as HTMLElement;
 const changeEl = document.getElementById("change") as HTMLElement;
 const statusEl = document.getElementById("status") as HTMLElement;
 const hideBtn = document.getElementById("hide-btn") as HTMLButtonElement;
+const settingsBtn = document.getElementById("settings-btn") as HTMLButtonElement;
+const settingsPanel = document.getElementById("settings-panel") as HTMLElement;
+const alwaysOnTopInput = document.getElementById(
+  "always-on-top",
+) as HTMLInputElement;
+const schemeBtns = Array.from(
+  document.querySelectorAll<HTMLButtonElement>(".scheme-btn"),
+);
 const chartEl = document.getElementById("chart") as HTMLElement;
 const periodBtns = Array.from(
   document.querySelectorAll<HTMLButtonElement>(".period-btn"),
@@ -43,11 +60,21 @@ function isMarket(v: string | null | undefined): v is Market {
   return v === "US" || v === "HK" || v === "KR";
 }
 
+function isColorScheme(v: string | null | undefined): v is ColorScheme {
+  return v === "green-up" || v === "red-up";
+}
+
 let market: Market = isMarket(localStorage.getItem(STORAGE_MARKET))
   ? (localStorage.getItem(STORAGE_MARKET) as Market)
   : "US";
 let symbol = localStorage.getItem(STORAGE_SYMBOL) || DEFAULTS[market];
 let period = localStorage.getItem(STORAGE_PERIOD) || "1m";
+let colorScheme: ColorScheme = isColorScheme(
+  localStorage.getItem(STORAGE_COLOR_SCHEME),
+)
+  ? (localStorage.getItem(STORAGE_COLOR_SCHEME) as ColorScheme)
+  : "green-up";
+let alwaysOnTop = localStorage.getItem(STORAGE_ALWAYS_ON_TOP) === "1";
 let timer: number | undefined;
 let refreshVersion = 0;
 
@@ -64,11 +91,32 @@ const chart = new StockChart(chartEl);
 const appWindow = getCurrentWindow();
 const toolbar = document.querySelector(".toolbar") as HTMLElement;
 
+function applyColorScheme(scheme: ColorScheme) {
+  colorScheme = scheme;
+  localStorage.setItem(STORAGE_COLOR_SCHEME, scheme);
+  document.body.classList.toggle("red-up", scheme === "red-up");
+  const colors = SCHEME_COLORS[scheme];
+  chart.setColors(colors.up, colors.down);
+  schemeBtns.forEach((btn) =>
+    btn.classList.toggle("active", btn.dataset.scheme === scheme),
+  );
+}
+
+function setSettingsOpen(open: boolean) {
+  settingsPanel.classList.toggle("hidden", !open);
+}
+
+applyColorScheme(colorScheme);
+alwaysOnTopInput.checked = alwaysOnTop;
+if (alwaysOnTop) {
+  void appWindow.setAlwaysOnTop(true);
+}
+
 function isInteractiveTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
   return Boolean(
     target.closest(
-      "input, button, a, select, textarea, .period, .symbol-form, .market",
+      "input, button, a, select, textarea, .period, .symbol-form, .market, .settings-panel",
     ),
   );
 }
@@ -81,6 +129,33 @@ toolbar.addEventListener("mousedown", (e) => {
 
 hideBtn.addEventListener("click", async () => {
   await appWindow.hide();
+});
+
+settingsBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  setSettingsOpen(settingsPanel.classList.contains("hidden"));
+});
+
+settingsPanel.addEventListener("click", (e) => {
+  e.stopPropagation();
+});
+
+document.addEventListener("click", () => {
+  setSettingsOpen(false);
+});
+
+schemeBtns.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const next = btn.dataset.scheme;
+    if (!isColorScheme(next) || next === colorScheme) return;
+    applyColorScheme(next);
+  });
+});
+
+alwaysOnTopInput.addEventListener("change", () => {
+  alwaysOnTop = alwaysOnTopInput.checked;
+  localStorage.setItem(STORAGE_ALWAYS_ON_TOP, alwaysOnTop ? "1" : "0");
+  void appWindow.setAlwaysOnTop(alwaysOnTop);
 });
 
 function syncPlaceholder() {

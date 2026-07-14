@@ -35,6 +35,14 @@
         </div>
         <button
           type="button"
+          id="settings-btn"
+          class="icon-btn"
+          title="设置"
+        >
+          ⚙
+        </button>
+        <button
+          type="button"
           id="hide-btn"
           class="icon-btn"
           title="收起到托盘"
@@ -42,6 +50,22 @@
           −
         </button>
       </header>
+      <div id="settings-panel" class="settings-panel hidden">
+        <div class="settings-row">
+          <span>涨跌颜色</span>
+          <div class="scheme">
+            <button type="button" class="scheme-btn active" data-scheme="green-up">绿涨红跌</button>
+            <button type="button" class="scheme-btn" data-scheme="red-up">红涨绿跌</button>
+          </div>
+        </div>
+        <div class="settings-row">
+          <span>窗口置顶</span>
+          <label class="toggle">
+            <input type="checkbox" id="always-on-top" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
       <div id="chart" class="chart"></div>
       <div id="status" class="status">加载中…</div>
     </div>
