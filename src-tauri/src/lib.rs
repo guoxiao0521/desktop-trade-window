@@ -21,6 +21,8 @@ pub struct AppSettings {
     pub period: String,
     #[serde(default = "default_color_scheme")]
     pub color_scheme: String,
+    #[serde(default = "default_theme")]
+    pub theme: String,
     #[serde(default)]
     pub always_on_top: bool,
     /// Outer window position in physical pixels (from last drag).
@@ -47,6 +49,10 @@ fn default_color_scheme() -> String {
     "green-up".into()
 }
 
+fn default_theme() -> String {
+    "dark".into()
+}
+
 fn default_last_symbols() -> HashMap<String, String> {
     HashMap::from([
         ("US".into(), "AAPL".into()),
@@ -62,6 +68,7 @@ impl Default for AppSettings {
             last_symbols: default_last_symbols(),
             period: default_period(),
             color_scheme: default_color_scheme(),
+            theme: default_theme(),
             always_on_top: false,
             window_x: None,
             window_y: None,

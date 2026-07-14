@@ -24,6 +24,7 @@ interface AppSettings {
   lastSymbols: Record<string, string>;
   period: string;
   colorScheme: string;
+  theme: string;
   alwaysOnTop: boolean;
   windowX?: number | null;
   windowY?: number | null;
@@ -38,6 +39,7 @@ const LEGACY_STORAGE_COLOR_SCHEME = "stock-widget:colorScheme";
 const LEGACY_STORAGE_ALWAYS_ON_TOP = "stock-widget:alwaysOnTop";
 
 type ColorScheme = "green-up" | "red-up";
+type Theme = "dark" | "light";
 
 const SCHEME_COLORS: Record<ColorScheme, { up: string; down: string }> = {
   "green-up": { up: "#26a69a", down: "#ef5350" },
@@ -64,6 +66,9 @@ const alwaysOnTopInput = document.getElementById(
 const schemeBtns = Array.from(
   document.querySelectorAll<HTMLButtonElement>(".scheme-btn"),
 );
+const themeBtns = Array.from(
+  document.querySelectorAll<HTMLButtonElement>(".theme-btn"),
+);
 const chartEl = document.getElementById("chart") as HTMLElement;
 const periodBtns = Array.from(
   document.querySelectorAll<HTMLButtonElement>(".period-btn"),
@@ -78,6 +83,10 @@ function isMarket(v: string | null | undefined): v is Market {
 
 function isColorScheme(v: string | null | undefined): v is ColorScheme {
   return v === "green-up" || v === "red-up";
+}
+
+function isTheme(v: string | null | undefined): v is Theme {
+  return v === "dark" || v === "light";
 }
 
 function isPeriod(v: string | null | undefined): v is string {
@@ -139,6 +148,7 @@ let lastSymbols: Record<Market, string> = defaultLastSymbols();
 let symbol = DEFAULTS.US;
 let period = "1m";
 let colorScheme: ColorScheme = "green-up";
+let theme: Theme = "dark";
 let alwaysOnTop = false;
 let windowX: number | null = null;
 let windowY: number | null = null;
@@ -160,6 +170,7 @@ function currentSettings(): AppSettings {
     lastSymbols: { ...lastSymbols },
     period,
     colorScheme,
+    theme,
     alwaysOnTop,
     windowX,
     windowY,
@@ -234,6 +245,16 @@ function applyColorScheme(scheme: ColorScheme, persistChange = true) {
   if (persistChange) persist();
 }
 
+function applyTheme(next: Theme, persistChange = true) {
+  theme = next;
+  document.body.classList.toggle("light", next === "light");
+  chart.setTheme(next);
+  themeBtns.forEach((btn) =>
+    btn.classList.toggle("active", btn.dataset.theme === next),
+  );
+  if (persistChange) persist();
+}
+
 function setSettingsOpen(open: boolean) {
   settingsPanel.classList.toggle("hidden", !open);
 }
@@ -260,6 +281,7 @@ function applyUiFromState() {
   });
   alwaysOnTopInput.checked = alwaysOnTop;
   applyColorScheme(colorScheme, false);
+  applyTheme(theme, false);
   syncPlaceholder();
 }
 
@@ -300,6 +322,14 @@ schemeBtns.forEach((btn) => {
     const next = btn.dataset.scheme;
     if (!isColorScheme(next) || next === colorScheme) return;
     applyColorScheme(next);
+  });
+});
+
+themeBtns.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const next = btn.dataset.theme;
+    if (!isTheme(next) || next === theme) return;
+    applyTheme(next);
   });
 });
 
@@ -472,6 +502,7 @@ function defaultSettings(): AppSettings {
     lastSymbols: defaultLastSymbols(),
     period: "1m",
     colorScheme: "green-up",
+    theme: "dark",
     alwaysOnTop: false,
     windowX: null,
     windowY: null,
@@ -501,6 +532,7 @@ async function bootstrap() {
           },
           period: legacy.period ?? settings.period,
           colorScheme: legacy.colorScheme ?? settings.colorScheme,
+          theme: legacy.theme ?? settings.theme,
           alwaysOnTop: legacy.alwaysOnTop ?? settings.alwaysOnTop,
         };
       }
@@ -515,6 +547,7 @@ async function bootstrap() {
   colorScheme = isColorScheme(settings.colorScheme)
     ? settings.colorScheme
     : "green-up";
+  theme = isTheme(settings.theme) ? settings.theme : "dark";
   alwaysOnTop = Boolean(settings.alwaysOnTop);
   windowX = parseCoord(settings.windowX);
   windowY = parseCoord(settings.windowY);

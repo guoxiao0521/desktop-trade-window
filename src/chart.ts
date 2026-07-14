@@ -106,6 +106,29 @@ export class StockChart {
     }
   }
 
+  setTheme(theme: "dark" | "light") {
+    const light = theme === "light";
+    this.chart.applyOptions({
+      layout: {
+        textColor: light ? "#64748b" : "#8b95a8",
+      },
+      grid: {
+        vertLines: { color: light ? "rgba(0,0,0,0.06)" : "rgba(255,255,255,0.04)" },
+        horzLines: { color: light ? "rgba(0,0,0,0.06)" : "rgba(255,255,255,0.04)" },
+      },
+      crosshair: {
+        vertLine: {
+          color: light ? "rgba(59,124,255,0.4)" : "rgba(79,140,255,0.35)",
+          labelBackgroundColor: light ? "#e2e8f0" : "#2a3344",
+        },
+        horzLine: {
+          color: light ? "rgba(59,124,255,0.4)" : "rgba(79,140,255,0.35)",
+          labelBackgroundColor: light ? "#e2e8f0" : "#2a3344",
+        },
+      },
+    });
+  }
+
   setData(bars: CandleBar[]) {
     this.lastBars = bars;
     const candles = bars.map((b) => ({
