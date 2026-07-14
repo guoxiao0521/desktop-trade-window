@@ -1,0 +1,230 @@
+:root {
+  color-scheme: dark;
+  --bg: rgba(18, 22, 30, 0.92);
+  --border: rgba(255, 255, 255, 0.08);
+  --text: #e8edf5;
+  --muted: #8b95a8;
+  --up: #26a69a;
+  --down: #ef5350;
+  --input-bg: rgba(255, 255, 255, 0.06);
+  --accent: #4f8cff;
+  font-family: "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+}
+
+body {
+  color: var(--text);
+  user-select: none;
+}
+
+.widget {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  backdrop-filter: blur(16px);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 8px 0 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  cursor: grab;
+  /* Windows WebView2 drag region */
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.toolbar:active {
+  cursor: grabbing;
+}
+
+/* Interactive controls must opt out of native drag */
+.toolbar input,
+.toolbar button,
+.toolbar .period,
+.toolbar .market,
+.toolbar .symbol-form {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.market {
+  display: flex;
+  gap: 1px;
+  background: var(--input-bg);
+  border-radius: 6px;
+  padding: 2px;
+  flex-shrink: 0;
+}
+
+.market-btn {
+  height: 20px;
+  min-width: 26px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.02em;
+}
+
+.market-btn.active {
+  background: rgba(79, 140, 255, 0.25);
+  color: var(--text);
+}
+
+.market-btn:hover:not(.active) {
+  color: var(--text);
+}
+
+.symbol-form {
+  flex-shrink: 0;
+}
+
+#symbol-input {
+  width: 68px;
+  height: 24px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: center;
+  outline: none;
+  cursor: text;
+}
+
+#symbol-input:focus {
+  border-color: var(--accent);
+  background: rgba(79, 140, 255, 0.12);
+}
+
+.quote {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.price {
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.change {
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--muted);
+}
+
+.change.up,
+.price.up {
+  color: var(--up);
+}
+
+.change.down,
+.price.down {
+  color: var(--down);
+}
+
+.period {
+  display: flex;
+  gap: 2px;
+  background: var(--input-bg);
+  border-radius: 6px;
+  padding: 2px;
+  flex-shrink: 0;
+}
+
+.period-btn {
+  height: 20px;
+  min-width: 28px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.period-btn.active {
+  background: rgba(79, 140, 255, 0.25);
+  color: var(--text);
+}
+
+.period-btn:hover:not(.active) {
+  color: var(--text);
+}
+
+.icon-btn {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.icon-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+
+.chart {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  position: relative;
+}
+
+.status {
+  flex-shrink: 0;
+  height: 22px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  border-top: 1px solid var(--border);
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

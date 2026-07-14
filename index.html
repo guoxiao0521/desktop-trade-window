@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stock Widget</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+    <script type="module" src="/src/main.ts" defer></script>
+  </head>
+  <body>
+    <div class="widget">
+      <header class="toolbar" data-tauri-drag-region>
+        <div class="market" id="market">
+          <button type="button" class="market-btn active" data-market="US" title="美股">US</button>
+          <button type="button" class="market-btn" data-market="HK" title="港股">HK</button>
+          <button type="button" class="market-btn" data-market="KR" title="韩股">KR</button>
+        </div>
+        <form id="symbol-form" class="symbol-form">
+          <input
+            id="symbol-input"
+            type="text"
+            value="AAPL"
+            spellcheck="false"
+            autocomplete="off"
+            title="代码：美股 AAPL·DJI / 港股 00700·HSI / 韩股 005930·KOSPI"
+          />
+        </form>
+        <div class="quote" id="quote" data-tauri-drag-region>
+          <span class="price" id="price" data-tauri-drag-region>--</span>
+          <span class="change" id="change" data-tauri-drag-region>--</span>
+        </div>
+        <div class="period">
+          <button type="button" class="period-btn active" data-period="1m">1m</button>
+          <button type="button" class="period-btn" data-period="5m">5m</button>
+        </div>
+        <button
+          type="button"
+          id="hide-btn"
+          class="icon-btn"
+          title="收起到托盘"
+        >
+          −
+        </button>
+      </header>
+      <div id="chart" class="chart"></div>
+      <div id="status" class="status">加载中…</div>
+    </div>
+  </body>
+</html>
