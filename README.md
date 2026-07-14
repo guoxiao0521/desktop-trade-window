@@ -6,7 +6,7 @@ Windows 桌面股票小组件：当日分钟 K 线 + 实时报价，无边框悬
 
 ## 下载
 
-在 [Releases](https://github.com/guoxiao0521/desktop-trade-window/releases) 下载 Windows 安装包（`*-setup.exe`）。
+在 [Releases](https://github.com/guoxiao0521/desktop-trade-window/releases) 下载 Windows 安装包（`StockWidget_*_x64-setup.exe`）。
 
 > 未做代码签名时，首次运行可能被 SmartScreen 拦截，选择「仍要运行」即可。
 

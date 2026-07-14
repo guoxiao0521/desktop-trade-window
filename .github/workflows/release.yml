@@ -33,17 +33,32 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Build and publish
-        uses: tauri-apps/tauri-action@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build Tauri app
+        run: npm run tauri build
+
+      - name: Prepare release asset
+        shell: pwsh
+        run: |
+          $version = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          New-Item -ItemType Directory -Force release-assets | Out-Null
+          $src = Get-ChildItem "src-tauri/target/release/bundle/nsis/*-setup.exe" |
+            Select-Object -First 1
+          if (-not $src) {
+            throw "NSIS setup exe not found"
+          }
+          $dest = "release-assets/StockWidget_${version}_x64-setup.exe"
+          Copy-Item $src.FullName $dest
+          "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Get-ChildItem release-assets
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          tagName: v__VERSION__
-          releaseName: 'Stock Widget v__VERSION__'
-          releaseBody: |
+          tag_name: v${{ env.VERSION }}
+          name: Stock Widget v${{ env.VERSION }}
+          files: release-assets/*
+          fail_on_unmatched_files: true
+          body: |
             Windows 安装包（NSIS）。
 
-            下载下方 `*-setup.exe` 安装即可。首次运行若被 SmartScreen 拦截，选择「仍要运行」即可（未代码签名属正常现象）。
-          releaseDraft: false
-          prerelease: false
-          includeDebug: false
+            下载下方 `StockWidget_*_x64-setup.exe` 安装即可。首次运行若被 SmartScreen 拦截，选择「仍要运行」即可（未代码签名属正常现象）。
