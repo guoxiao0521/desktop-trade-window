@@ -52,6 +52,19 @@ const DEFAULTS: Record<Market, string> = {
   KR: "005930",
 };
 
+/** Exchange IANA timezones for chart axis / crosshair labels. */
+const MARKET_TIMEZONES: Record<Market, string> = {
+  US: "America/New_York",
+  HK: "Asia/Hong_Kong",
+  KR: "Asia/Seoul",
+};
+
+const MARKET_TZ_LABELS: Record<Market, string> = {
+  US: "美东时间",
+  HK: "港股时间",
+  KR: "韩国时间",
+};
+
 const symbolInput = document.getElementById("symbol-input") as HTMLInputElement;
 const symbolForm = document.getElementById("symbol-form") as HTMLFormElement;
 const priceEl = document.getElementById("price") as HTMLElement;
@@ -70,6 +83,10 @@ const themeBtns = Array.from(
   document.querySelectorAll<HTMLButtonElement>(".theme-btn"),
 );
 const chartEl = document.getElementById("chart") as HTMLElement;
+const chartLoadingEl = document.getElementById("chart-loading") as HTMLElement;
+const chartLoadingTextEl = document.getElementById(
+  "chart-loading-text",
+) as HTMLElement;
 const periodBtns = Array.from(
   document.querySelectorAll<HTMLButtonElement>(".period-btn"),
 );
@@ -161,8 +178,19 @@ let settingsReady = false;
 let suppressWindowPersist = false;
 
 const chart = new StockChart(chartEl);
+chart.setTimeZone(MARKET_TIMEZONES.US);
 const appWindow = getCurrentWindow();
 const toolbar = document.querySelector(".toolbar") as HTMLElement;
+
+function syncChartTimeZone(m: Market) {
+  chart.setTimeZone(MARKET_TIMEZONES[m]);
+}
+
+function setChartLoading(on: boolean, label = "加载中…") {
+  chartLoadingEl.classList.toggle("hidden", !on);
+  chartLoadingEl.setAttribute("aria-hidden", on ? "false" : "true");
+  if (on) chartLoadingTextEl.textContent = label;
+}
 
 function currentSettings(): AppSettings {
   return {
@@ -362,6 +390,7 @@ marketBtns.forEach((btn) => {
       b.classList.toggle("active", b.dataset.market === market),
     );
     syncPlaceholder();
+    syncChartTimeZone(market);
     persist();
     void refresh(true);
   });
@@ -443,7 +472,9 @@ async function refresh(showLoading: boolean) {
     timer = undefined;
   }
   if (showLoading) {
-    statusEl.textContent = `加载 ${requestedMarket}:${requestedSymbol} …`;
+    const label = `加载 ${requestedMarket}:${requestedSymbol} …`;
+    statusEl.textContent = label;
+    setChartLoading(true, label);
   }
 
   try {
@@ -461,9 +492,6 @@ async function refresh(showLoading: boolean) {
 
     if (version !== refreshVersion) return;
 
-    chart.setData(bars);
-    applyQuote(quote);
-
     let dirty = false;
     if (isMarket(quote.market) && quote.market !== market) {
       market = quote.market;
@@ -472,6 +500,10 @@ async function refresh(showLoading: boolean) {
       );
       dirty = true;
     }
+    syncChartTimeZone(market);
+    chart.setData(bars);
+    applyQuote(quote);
+
     const resolved = quote.symbol.trim().toUpperCase();
     if (resolved && lastSymbols[market] !== resolved) {
       lastSymbols[market] = resolved;
@@ -485,14 +517,18 @@ async function refresh(showLoading: boolean) {
 
     const when = new Date().toLocaleTimeString("zh-CN", { hour12: false });
     const session = isMarketOpen(market) ? "盘中 30s 刷新" : "休市 5min 刷新";
-    statusEl.textContent = `${quote.market}:${quote.symbol} · ${bars.length} 根 · ${when} · ${session}`;
+    const tzLabel = MARKET_TZ_LABELS[market];
+    statusEl.textContent = `${quote.market}:${quote.symbol} · ${bars.length} 根 · ${when} · ${tzLabel} · ${session}`;
   } catch (err) {
     if (version !== refreshVersion) return;
     const msg = err instanceof Error ? err.message : String(err);
     statusEl.textContent = `错误: ${msg}`;
     console.error(err);
   } finally {
-    if (version === refreshVersion) scheduleNext();
+    if (version === refreshVersion) {
+      setChartLoading(false);
+      scheduleNext();
+    }
   }
 }
 
@@ -556,6 +592,7 @@ async function bootstrap() {
   symbol = lastSymbols[market] || DEFAULTS[market];
 
   applyUiFromState();
+  syncChartTimeZone(market);
   if (alwaysOnTop) {
     void appWindow.setAlwaysOnTop(true);
   }
