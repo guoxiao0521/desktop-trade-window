@@ -60,8 +60,8 @@ npm run tauri build
 
 ```bash
 # 先确认 package.json / src-tauri/Cargo.toml / src-tauri/tauri.conf.json 版本号一致
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.1.1
+git push origin v0.1.1
 ```
 
 也可在 GitHub → Actions → **Release** → **Run workflow** 手动触发。
